@@ -3,13 +3,15 @@ import './app.css';
 
 import logo from './assets/images/logo-universal.png';
 import {Greet} from '../wailsjs/go/main/App';
+import { GetStatus } from '../wailsjs/go/main/App';
 
 document.querySelector('#app').innerHTML = `
     <img id="logo" class="logo">
       <div class="result" id="result">Please enter your name below 👇</div>
       <div class="input-box" id="input">
-        <input class="input" id="name" type="text" autocomplete="off" />
-        <button class="btn" onclick="greet()">Greet</button>
+      <input class="input" id="name" type="text" autocomplete="off" />
+      <button class="btn" onclick="greet()">Greet</button>
+      <div class="result" id="status">Current status</div>
       </div>
     </div>
 `;
@@ -18,6 +20,10 @@ document.getElementById('logo').src = logo;
 let nameElement = document.getElementById("name");
 nameElement.focus();
 let resultElement = document.getElementById("result");
+
+GetStatus().then(status => {
+    document.getElementById("status").innerText= status
+})
 
 // Setup the greet function
 window.greet = function () {
