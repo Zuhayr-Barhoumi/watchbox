@@ -103,16 +103,18 @@ function confirmDelete() {
         </div>
         <div class="toolbar-right">
           <button v-if="jobs.some(j => j.Enabled)" class="btn btn-ghost" @click="runAll">
-            <IconPlay /> Run all
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.5l10 5.5-10 5.5V2.5z"/></svg>
+            Run all
           </button>
-          <button class="btn btn-primary" @click="openAddModal">
-            <IconPlus /> Add job
+          <button class="btn btn-primary" @click="() => { console.log('clicked'); modalOpen.value = true }">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+            Add job
           </button>
         </div>
       </div>
 
       <div class="table-wrap">
-        <EmptyState v-if="jobs.length === 0" @add="openAddModal" />
+        <EmptyState v-if="jobs.length === 0" @add="() => { console.log('clicked'); modalOpen.value = true }" />
         <JobsTable
           v-else
           :jobs="jobs"
@@ -146,11 +148,6 @@ function confirmDelete() {
   </div>
 </template>
 
-<!-- Inline icon components to avoid extra files -->
-<script>
-export const IconPlay = { template: `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.5l10 5.5-10 5.5V2.5z"/></svg>` }
-export const IconPlus = { template: `<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>` }
-</script>
 
 <style scoped>
 .layout {
