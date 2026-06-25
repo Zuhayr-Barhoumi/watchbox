@@ -5,7 +5,7 @@ defineEmits(['confirm', 'cancel'])
 
 <template>
   <Teleport to="body">
-    <div class="backdrop" :class="{ open }" @click.self="$emit('cancel')">
+    <div v-if="open" class="backdrop" @click.self="$emit('cancel')">
       <div class="box">
         <p class="box-title">Delete job?</p>
         <p class="box-msg">
@@ -30,12 +30,7 @@ defineEmits(['confirm', 'cancel'])
   align-items: center;
   justify-content: center;
   z-index: 200;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
 }
-
-.backdrop.open { opacity: 1; pointer-events: all; }
 
 .box {
   background: var(--surface);

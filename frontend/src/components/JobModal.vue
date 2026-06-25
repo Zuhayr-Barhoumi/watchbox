@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const props = defineProps({
   open: Boolean,
@@ -11,14 +11,12 @@ const emit = defineEmits(['save', 'close'])
 const form = ref({ Name: '', LocalPath: '', S3Bucket: '', S3Key: '', Schedule: '00:00', Enabled: true })
 const errors = ref({})
 
-// Populate form when modal opens
-watch(() => props.open, (val) => {
-  if (val) {
-    form.value = props.job
-      ? { ...props.job }
-      : { Name: '', LocalPath: '', S3Bucket: '', S3Key: '', Schedule: '00:00', Enabled: true }
-    errors.value = {}
-  }
+// Populate form when modal mounts (v-if recreates component)
+onMounted(() => {
+  form.value = props.job
+    ? { ...props.job }
+    : { Name: '', LocalPath: '', S3Bucket: '', S3Key: '', Schedule: '00:00', Enabled: true }
+  errors.value = {}
 })
 
 function validate() {
@@ -39,7 +37,7 @@ function save() {
 
 <template>
   <Teleport to="body">
-    <div class="backdrop" :class="{ open }" @click.self="$emit('close')">
+    <div v-if="open" class="backdrop" @click.self="$emit('close')">
       <div class="modal">
         <div class="modal-header">
           <span class="modal-title">{{ job ? 'Edit job' : 'New job' }}</span>
@@ -126,14 +124,6 @@ function save() {
   align-items: center;
   justify-content: center;
   z-index: 100;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s;
-}
-
-.backdrop.open {
-  opacity: 1;
-  pointer-events: all;
 }
 
 .modal {
@@ -144,9 +134,12 @@ function save() {
   max-width: calc(100vw - 40px);
   transform: translateY(8px);
   transition: transform 0.15s;
+  animation: modalIn 0.15s ease-out forwards;
 }
 
-.backdrop.open .modal { transform: translateY(0); }
+@keyframes modalIn {
+  to { transform: translateY(0); }
+}
 
 .modal-header {
   display: flex;

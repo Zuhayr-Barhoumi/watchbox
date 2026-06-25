@@ -29,7 +29,7 @@ function save() {
 
 <template>
   <Teleport to="body">
-    <div class="backdrop" :class="{ open }" @click.self="$emit('close')">
+    <div v-if="open" class="backdrop" @click.self="$emit('close')">
       <div class="panel">
         <div class="panel-header">
           <span class="panel-title">Settings</span>
@@ -82,12 +82,7 @@ function save() {
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 100;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s;
 }
-
-.backdrop.open { opacity: 1; pointer-events: all; }
 
 .panel {
   position: absolute;
@@ -101,9 +96,12 @@ function save() {
   flex-direction: column;
   transform: translateX(100%);
   transition: transform 0.2s ease;
+  animation: panelIn 0.2s ease forwards;
 }
 
-.backdrop.open .panel { transform: translateX(0); }
+@keyframes panelIn {
+  to { transform: translateX(0); }
+}
 
 .panel-header {
   display: flex;

@@ -1,5 +1,5 @@
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import JobsTable from './components/JobsTable.vue'
 import EmptyState from './components/EmptyState.vue'
@@ -7,32 +7,19 @@ import JobModal from './components/JobModal.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import StatusBar from './components/StatusBar.vue'
+import { GetAllJobs, CreateJob, UpdateJob, DeleteJob, RunJobNow, GetJobByID } from '../wailsjs/go/main/App'
+import { EventsOn } from '../wailsjs/runtime/runtime'
+import type { Job } from '../wailsjs/go/models'
 
 // ── State ──────────────────────────────────────────
-const jobs = ref([
-  {
-    ID: 1, Name: 'Daily Reports', LocalPath: '/home/user/reports',
-    S3Bucket: 'my-bucket', S3Key: 'backups/reports/', Schedule: '02:00',
-    Enabled: true, LastRun: '2026-05-29 02:00', LastStatus: 'ok', LastError: ''
-  },
-  {
-    ID: 2, Name: 'Project Assets', LocalPath: '/home/user/assets',
-    S3Bucket: 'my-bucket', S3Key: 'backups/assets/', Schedule: '14:30',
-    Enabled: true, LastRun: '2026-05-28 14:30', LastStatus: 'failed',
-    LastError: 'AccessDenied: s3:PutObject'
-  },
-  {
-    ID: 3, Name: 'Config Backup', LocalPath: '/etc/myapp',
-    S3Bucket: 'config-store', S3Key: 'server1/', Schedule: '00:00',
-    Enabled: false, LastRun: null, LastStatus: 'never', LastError: ''
-  },
-])
-
+const jobs = ref<Job[]>([])
 const modalOpen = ref(false)
-const editingJob = ref(null)
+const editingJob = ref<Job | null>(null)
 const settingsOpen = ref(false)
 const confirmOpen = ref(false)
-const pendingDeleteId = ref(null)
+const pendingDeleteId = ref<number | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
 
 // ── Job actions ────────────────────────────────────
 function openAddModal() {
@@ -40,55 +27,126 @@ function openAddModal() {
   modalOpen.value = true
 }
 
-function openEditModal(job) {
+function openEditModal(job: Job) {
   editingJob.value = { ...job }
   modalOpen.value = true
 }
 
-function saveJob(job) {
-  if (job.ID) {
-    // TODO: wire to Go → UpdateJob(job)
-    const idx = jobs.value.findIndex(j => j.ID === job.ID)
-    if (idx !== -1) jobs.value[idx] = job
-  } else {
-    // TODO: wire to Go → CreateJob(job)
-    jobs.value.push({ ...job, ID: Date.now(), LastStatus: 'never', LastRun: null })
+async function saveJob(job: Job) {
+  loading.value = true
+  error.value = null
+  try {
+    if (job.ID) {
+      await UpdateJob(job)
+      const idx = jobs.value.findIndex(j => j.ID === job.ID)
+      if (idx !== -1) jobs.value[idx] = job
+    } else {
+      const newId = await CreateJob(job)
+      jobs.value.push({ ...job, ID: newId, LastStatus: 'never', LastRun: undefined, LastError: undefined, CreatedAt: new Date().toISOString() })
+    }
+    modalOpen.value = false
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to save job'
+  } finally {
+    loading.value = false
   }
-  modalOpen.value = false
 }
 
-function runJob(id) {
-  // TODO: wire to Go → RunJobNow(id)
+async function runJob(id: number) {
   const job = jobs.value.find(j => j.ID === id)
   if (!job) return
   job.LastStatus = 'running'
-  setTimeout(() => {
-    job.LastStatus = 'ok'
-    job.LastRun = new Date().toLocaleString()
-  }, 2000)
+  try {
+    await RunJobNow(id)
+    // The backend will emit an event when job completes
+    // For now, we'll simulate completion
+    setTimeout(async () => {
+      const updated = await GetJobByID(id)
+      if (updated) {
+        const idx = jobs.value.findIndex(j => j.ID === id)
+        if (idx !== -1) jobs.value[idx] = updated
+      }
+    }, 2000)
+  } catch (e) {
+    job.LastStatus = 'failed'
+    job.LastError = e instanceof Error ? e.message : 'Failed to run job'
+  }
 }
 
-function runAll() {
-  jobs.value.filter(j => j.Enabled).forEach(j => runJob(j.ID))
+async function runAll() {
+  const enabledJobs = jobs.value.filter(j => j.Enabled)
+  for (const job of enabledJobs) {
+    await runJob(job.ID)
+  }
 }
 
-function toggleJob(id, enabled) {
-  // TODO: wire to Go → UpdateJob(...)
+async function toggleJob(id: number, enabled: boolean) {
   const job = jobs.value.find(j => j.ID === id)
-  if (job) job.Enabled = enabled
+  if (!job) return
+  const previousEnabled = job.Enabled
+  job.Enabled = enabled
+  try {
+    await UpdateJob(job)
+  } catch (e) {
+    job.Enabled = previousEnabled
+    error.value = e instanceof Error ? e.message : 'Failed to update job'
+  }
 }
 
-function requestDelete(id) {
+function requestDelete(id: number) {
   pendingDeleteId.value = id
   confirmOpen.value = true
 }
 
-function confirmDelete() {
-  // TODO: wire to Go → DeleteJob(pendingDeleteId)
-  jobs.value = jobs.value.filter(j => j.ID !== pendingDeleteId.value)
-  pendingDeleteId.value = null
-  confirmOpen.value = false
+async function confirmDelete() {
+  if (!pendingDeleteId.value) return
+  loading.value = true
+  error.value = null
+  try {
+    await DeleteJob(pendingDeleteId.value)
+    jobs.value = jobs.value.filter(j => j.ID !== pendingDeleteId.value)
+    pendingDeleteId.value = null
+    confirmOpen.value = false
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to delete job'
+  } finally {
+    loading.value = false
+  }
 }
+
+// ── Initialization ─────────────────────────────────
+async function loadJobs() {
+  loading.value = true
+  error.value = null
+  try {
+    const loadedJobs = await GetAllJobs()
+    jobs.value = loadedJobs
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load jobs'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Listen for real-time job updates from Go backend
+onMounted(() => {
+  loadJobs()
+  
+  EventsOn('job:updated', (updatedJob: Job) => {
+    const idx = jobs.value.findIndex(j => j.ID === updatedJob.ID)
+    if (idx !== -1) {
+      jobs.value[idx] = updatedJob
+    }
+  })
+  
+  EventsOn('job:created', (newJob: Job) => {
+    jobs.value.push(newJob)
+  })
+  
+  EventsOn('job:deleted', (deletedId: number) => {
+    jobs.value = jobs.value.filter(j => j.ID !== deletedId)
+  })
+})
 </script>
 
 <template>
@@ -106,7 +164,7 @@ function confirmDelete() {
             <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.5l10 5.5-10 5.5V2.5z"/></svg>
             Run all
           </button>
-          <button class="btn btn-primary" @click="() => { console.log('clicked'); modalOpen.value = true }">
+          <button class="btn btn-primary" @click="openAddModal">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
             Add job
           </button>
@@ -114,7 +172,7 @@ function confirmDelete() {
       </div>
 
       <div class="table-wrap">
-        <EmptyState v-if="jobs.length === 0" @add="() => { console.log('clicked'); modalOpen.value = true }" />
+        <EmptyState v-if="jobs.length === 0" @add="openAddModal" />
         <JobsTable
           v-else
           :jobs="jobs"

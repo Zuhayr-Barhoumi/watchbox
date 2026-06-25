@@ -26,6 +26,25 @@
   --sans:       'IBM Plex Sans', sans-serif;
 }
 
+:root.light {
+  --bg:         #ffffff;
+  --surface:    #f6f8fa;
+  --border:     #d0d7de;
+  --border-mid: #d8dee4;
+  --text:       #24292f;
+  --text-dim:   #656d76;
+  --text-bright:#09090b;
+  --accent:     #0969da;
+  --accent-dim: #dbeafe;
+  --green:      #2da44e;
+  --green-dim:  #dafbe1;
+  --red:        #cf222e;
+  --red-dim:    #ffdcd7;
+  --yellow:     #9a6700;
+  --yellow-dim: #fff8c5;
+  --blue-pulse: #0969da;
+}
+
 html, body {
   height: 100%;
   background: var(--bg);
